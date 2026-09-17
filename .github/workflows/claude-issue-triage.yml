@@ -4,59 +4,49 @@ on:
   issues:
     types: [opened, edited]
 
-concurrency:
-  group: claude-issue-triage-${{ github.event.issue.number }}
-  cancel-in-progress: true
-
 jobs:
-  triage:
+  format-issue:
     runs-on: ubuntu-latest
     permissions:
       contents: read
       issues: write
       id-token: write
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
 
-      - name: Triage issue with Claude
-        id: claude-triage
+      - name: Format issue with Claude
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_args: "--allowedTools Bash(gh issue *)"
           prompt: |
-            You are triaging issue #${{ github.event.issue.number }} ("${{ github.event.issue.title }}")
-            in the repository ${{ github.repository }}.
-
-            1. Read the issue title and body. If needed, look at `game.js`, `index.html`, `style.css`
-               and `CLAUDE.md` to understand which part of the architecture is involved (board model,
-               `collide`, `tryRotate`, `lockPiece`, the `loop`/rendering functions, scoring/leveling, etc.).
-
-            2. Decide which labels apply and add them with:
-                 gh issue edit ${{ github.event.issue.number }} --add-label "<label>"
-               Prefer reusing one of the repo's existing labels if it fits:
-                 bug, enhancement, question, documentation, duplicate, invalid, wontfix,
-                 good first issue, help wanted, accessibility
-               You can check the full current list with `gh label list`. Only if none of the
-               existing labels genuinely fit, create one new, well-named label with a sensible
-               color using `gh label create "<name>" --color "<hex>" --description "<short description>"`,
-               then apply it. Never remove a label that is already on the issue — only add.
-
-            3. Post or update a single diagnostic comment on the issue using:
-                 gh issue comment ${{ github.event.issue.number }} --edit-last --create-if-none --body-file <file>
-               (this edits Claude's previous diagnostic comment instead of piling up a new one on
-               every edit of the issue). Write the comment in the same language as the issue, and include:
-                 - A short summary of the problem/request in your own words.
-                 - The likely root cause or the affected area, referencing concrete functions/files
-                   from the architecture above.
-                 - A suggested implementation approach: which file(s)/function(s) to touch, and any
-                   risks or edge cases to watch for.
-               This diagnosis is meant to prepare a future implementation pass — do not implement the
-               fix now.
-
-            4. Do not modify any files in the working tree and do not open a pull request.
-          claude_args: |
-            --allowedTools "Bash(gh issue edit:*),Bash(gh issue comment:*),Bash(gh label create:*),Bash(gh label list:*)"
+            You are a GitHub issue formatter for a Tetris game project (vanilla JS/HTML/CSS, no dependencies).
+            An issue was just ${{ github.event.action }} with the following details:
+            - Issue number: #${{ github.event.issue.number }}
+            - Title: ${{ github.event.issue.title }}
+            - Body: ${{ github.event.issue.body }}
+            - Author: ${{ github.event.issue.user.login }}
+            Your tasks:
+            1. **Add labels** based on the issue content. Use only these labels:
+               - `bug` — something is broken or behaving incorrectly
+               - `enhancement` — new feature or improvement request
+               - `question` — asking for help or clarification
+               - `documentation` — docs need updating
+               - `good first issue` — simple, beginner-friendly task
+               - `duplicate` — if it seems like a known/repeated problem
+            2. **Post a comment** on the issue that includes:
+               - A brief, friendly summary of what the issue is about (1-2 sentences)
+               - A "Formatted Report" section with:
+                 - **Type**: Bug / Feature Request / Question / Other
+                 - **Summary**: one clear sentence describing the problem or request
+                 - **Steps to reproduce** (for bugs): list them if not provided, ask the user to provide them if it's a bug
+                 - **Expected behavior** (for bugs): what should happen
+                 - **Suggested labels**: the labels you applied and why
+               - A closing note thanking the contributor
+            Use the `gh` CLI to apply labels and post the comment. Example commands:
+              gh issue edit ${{ github.event.issue.number }} --add-label "bug" --repo ${{ github.repository }}
+              gh issue comment ${{ github.event.issue.number }} --body "..." --repo ${{ github.repository }}
+            Be concise, helpful, and friendly. Do not over-engineer the response.
